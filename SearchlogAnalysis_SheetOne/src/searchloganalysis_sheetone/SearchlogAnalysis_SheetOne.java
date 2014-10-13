@@ -10,6 +10,7 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
+import java.io.UnsupportedEncodingException;
 import java.io.Writer;
 import java.lang.String;
 import java.text.ParseException;
@@ -39,6 +40,8 @@ public class SearchlogAnalysis_SheetOne {
     private static long epoch;
     private static long lastEpoch;
     
+    private static Writer writer;
+    
 
     /**
      * @param args the command line arguments
@@ -46,7 +49,10 @@ public class SearchlogAnalysis_SheetOne {
     public static void main(String[] args) {
         // TODO code application logic here
         resetVariables();
+        registerWriter();
         readBigData();
+        try {writer.close();}
+        catch (Exception ex) {}
         
     }
 
@@ -83,7 +89,12 @@ public class SearchlogAnalysis_SheetOne {
                 sessionId++;
             }
             String newEntry = buildNewEntry();
-            writeResults(newEntry);
+            System.out.println("pre");
+            
+            
+            
+            writeResults(writer, newEntry);
+            System.out.println("post");
             resetVariables();
             counter++;
         }
@@ -120,17 +131,22 @@ public class SearchlogAnalysis_SheetOne {
                     ","+epoch+"\"";
     }
 
-    private static void writeResults(String newEntry) {
-        Writer writer = null;
+    private static void writeResults(Writer writer, String newEntry) {
         try {
-            writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream("filename.txt"), "utf-8"));
-            writer.write(newEntry);
+            writer.write(newEntry + "/n");
         } catch (IOException ex) {
+            System.out.println("error");
+        }
+    }
+
+    private static void registerWriter() {
+        writer = null;
+        try {
+            writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream("results.txt"), "utf-8"));
+        } catch (UnsupportedEncodingException ex) {
             Logger.getLogger(SearchlogAnalysis_SheetOne.class.getName()).log(Level.SEVERE, null, ex);
-        } finally {
-           try {writer.close();} catch (Exception ex) {
-           
-           }
+        } catch (FileNotFoundException ex) {
+            Logger.getLogger(SearchlogAnalysis_SheetOne.class.getName()).log(Level.SEVERE, null, ex);
         }
     }
 }
