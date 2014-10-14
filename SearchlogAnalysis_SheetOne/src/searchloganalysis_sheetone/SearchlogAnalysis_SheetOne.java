@@ -1,7 +1,3 @@
-/*
- * To change this template, choose Tools | Templates
- * and open the template in the editor.
- */
 package searchloganalysis_sheetone;
 
 import java.io.BufferedWriter;
@@ -12,25 +8,28 @@ import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.io.UnsupportedEncodingException;
 import java.io.Writer;
-import java.lang.String;
 import java.text.ParseException;
-import java.util.ArrayList;
 import java.util.Date;
 import java.util.Scanner;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
- *
- * @author cip
+ * This program reads a TextFile, converts it to an R-friendly format and writes the result in a new .txt
  */
 public class SearchlogAnalysis_SheetOne {
     
-    private final static String BIG_DATA_LOCATION = "C:\\Users\\Soean\\Documents\\Uni\\AOL-user-ct-collection\\user-ct-test-collection-01.txt";
-    private static ArrayList<Long> convertedDates = new ArrayList<Long>();
+    /*
+     * Different Constants for different PC's
+     */
     
-    //Variables for Output
-    private static int sessionId;
+    //private final static String BIG_DATA_LOCATION = "C:\\Users\\Soean\\Documents\\Uni\\AOL-user-ct-collection\\user-ct-test-collection-01.txt";
+    private final static String BIG_DATA_LOCATION = "Y:\\Uni\\Serachlogs\\AOL-user-ct-collection\\user-ct-test-collection-01.txt";
+    
+    /*
+     * Variables for Output
+     */
+    private static int sessionId = 1;
     private static int userId = 0;
     private static int lastUserId;
     private static String query;
@@ -40,40 +39,88 @@ public class SearchlogAnalysis_SheetOne {
     private static long epoch;
     private static long lastEpoch;
     
-    private static Writer writer;
-    
 
     /**
      * @param args the command line arguments
      */
     public static void main(String[] args) {
-        // TODO code application logic here
         resetVariables();
-        registerWriter();
-        readBigData();
-        try {writer.close();}
-        catch (Exception ex) {}
-        
+        Writer writer = registerWriter();
+        readBigData(writer);
+        closeWriter(writer);
+        System.out.println("done");
     }
 
-    private static void readBigData() {
+    /**
+     * Resets Variables which change from query to query
+     */
+    private static void resetVariables() {
+        query = "";
+        rawDate = "";
+        generatedJavaDate = null;
+        timeSinceLastInteraction = 0;
+    }
+
+    private static Writer registerWriter() {
+        Writer writer = null;
+        try {
+            writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream("results.txt"), "utf-8"));
+        } catch (UnsupportedEncodingException | FileNotFoundException e) {
+            e.printStackTrace();
+        }
+        return writer;
+    }
+    
+    /**
+     * A scanner is used to read the file.
+     * @param writer 
+     */
+    private static void readBigData(Writer writer) {
         Scanner scanner;
         try { 
             scanner = new Scanner(new File(BIG_DATA_LOCATION), "UTF-8");
-            tokenizeInput(scanner);
+            tokenizeInput(scanner, writer);
             scanner.close();
         } catch (FileNotFoundException e) { 
             e.printStackTrace(); 
         }
     }
 
-    private static void tokenizeInput(Scanner scanner) {
+    /**
+     * The read lines get splittet, variables get set and with them a new String (new line) gets created and written in the results.txt.
+     * @param scanner
+     * @param writer 
+     */
+    private static void tokenizeInput(Scanner scanner, Writer writer) {
         scanner.nextLine();
-        int counter = 0;
         while(scanner.hasNextLine()){
+            String[] currentTokens = getNextLine(scanner);
+            String newEntry;
+            
+            setVariables(currentTokens);
+            changeSessionIfNecessary();
+            newEntry = buildNewEntry();
+            writeResults(writer, newEntry);
+            resetVariables();
+        }
+    }
+
+    /**
+     * The read lines get splittet at a Tabulator.
+     * @param scanner
+     * @return 
+     */
+    private static String[] getNextLine(Scanner scanner) {
             String currentString = scanner.nextLine();
             String[] currentTokens = currentString.split("\t");
-            
+            return currentTokens;
+    }
+
+    /**
+     * The read properties of the query are being written in the variables.
+     * @param currentTokens 
+     */
+    private static void setVariables(String[] currentTokens) {
             lastUserId = userId;
             userId = Integer.parseInt(currentTokens[0]);
             query = currentTokens[1];
@@ -82,24 +129,13 @@ public class SearchlogAnalysis_SheetOne {
             lastEpoch = epoch;
             epoch = generatedJavaDate.getTime();
             timeSinceLastInteraction = epoch - lastEpoch;
-            if(userId != lastUserId){
-                sessionId++;
-                timeSinceLastInteraction = 0;
-            } else if(timeSinceLastInteraction > 1800000){
-                sessionId++;
-            }
-            String newEntry = buildNewEntry();
-            System.out.println("pre");
-            
-            
-            
-            writeResults(writer, newEntry);
-            System.out.println("post");
-            resetVariables();
-            counter++;
-        }
     }
     
+    /**
+     * Converts Date from the read Format ("yyyy-MM-dd HH:mm:ss") to a Java-Date Object. Epoch can be retreived via the Date.getTime() method.
+     * @param simpleDate
+     * @return 
+     */
     private static Date convertToDate(String simpleDate){
         Date generatedDate = null;
         try {
@@ -109,18 +145,24 @@ public class SearchlogAnalysis_SheetOne {
         }
         return generatedDate;
     }
-    
-    private static Date convertEpochToDate(long epoch){
-        return new Date (epoch);
+
+    /**
+     * If the User-ID of the current query is different to the one before the sessionID ticks up (Also timeSinceLastInteraction = 0).
+     * If the User-ID is the same but the query is more than 30 minutes old the sessionID ticks up.
+     */
+    private static void changeSessionIfNecessary() {
+        if(userId != lastUserId){
+            sessionId++;
+            timeSinceLastInteraction = 0;
+        } else if(timeSinceLastInteraction > 1800000){
+            sessionId++;
+        }
     }
 
-    private static void resetVariables() {
-        query = "";
-        rawDate = "";
-        generatedJavaDate = null;
-        timeSinceLastInteraction = 0;
-    }
-
+    /**
+     * builds and returns a String in the right Format for R.
+     * @return 
+     */
     private static String buildNewEntry() {
         return "\""+sessionId+
                     ","+userId+
@@ -131,22 +173,25 @@ public class SearchlogAnalysis_SheetOne {
                     ","+epoch+"\"";
     }
 
+    /**
+     * Writes in the results.txt
+     * @param writer
+     * @param newEntry 
+     */
     private static void writeResults(Writer writer, String newEntry) {
         try {
-            writer.write(newEntry + "/n");
-        } catch (IOException ex) {
-            System.out.println("error");
+            writer.write(newEntry + "\n");
+        } catch (IOException e) {
+            e.printStackTrace();
         }
     }
 
-    private static void registerWriter() {
-        writer = null;
+    private static void closeWriter(Writer writer) {
         try {
-            writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream("results.txt"), "utf-8"));
-        } catch (UnsupportedEncodingException ex) {
-            Logger.getLogger(SearchlogAnalysis_SheetOne.class.getName()).log(Level.SEVERE, null, ex);
-        } catch (FileNotFoundException ex) {
-            Logger.getLogger(SearchlogAnalysis_SheetOne.class.getName()).log(Level.SEVERE, null, ex);
+            writer.close();
+        }
+        catch (Exception e) {
+            e.printStackTrace();
         }
     }
 }
