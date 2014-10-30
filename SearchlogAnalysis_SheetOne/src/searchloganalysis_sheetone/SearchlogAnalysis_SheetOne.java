@@ -21,17 +21,27 @@ public class SearchlogAnalysis_SheetOne {
     
     /*
      * Different Constants for different PC's
+     * 1. Laptop
+     * 2. Desktop at Home
+     * 3. CipPool (typical Location)
      */
-    
     //private final static String BIG_DATA_LOCATION = "C:\\Users\\Soean\\Documents\\Uni\\AOL-user-ct-collection\\user-ct-test-collection-01.txt";
-    private final static String BIG_DATA_LOCATION = "Y:\\Uni\\Serachlogs\\AOL-user-ct-collection\\user-ct-test-collection-01.txt";
+    //private final static String BIG_DATA_LOCATION = "Y:\\Uni\\Serachlogs\\AOL-user-ct-collection\\user-ct-test-collection-01.txt";
+    private final static String BIG_DATA_LOCATION = "C:\\Users\\cip\\AOL-user-ct-collection\\user-ct-test-collection-01.txt";
+    
+    /*
+     * Header Line for Ouput
+     */
+    private static final String HEADER = "sessionID,UserID,query,rawDatw,javaGenDate,timeSinceLast,epoch";
     
     /*
      * Variables for Output
      */
-    private static int sessionId = 1;
+    private static int sessionId = 0;
     private static int userId = 0;
     private static int lastUserId;
+    private static int totalUsers = 0;
+    private static int totalClicks = 0;
     private static String query;
     private static String rawDate;
     private static Date generatedJavaDate;
@@ -48,6 +58,8 @@ public class SearchlogAnalysis_SheetOne {
         Writer writer = registerWriter();
         readBigData(writer);
         closeWriter(writer);
+        System.out.println(totalUsers);
+        System.out.println(totalClicks);
         System.out.println("done");
     }
 
@@ -93,6 +105,7 @@ public class SearchlogAnalysis_SheetOne {
      */
     private static void tokenizeInput(Scanner scanner, Writer writer) {
         scanner.nextLine();
+        writeResults(writer, HEADER);
         while(scanner.hasNextLine()){
             String[] currentTokens = getNextLine(scanner);
             String newEntry;
@@ -129,6 +142,9 @@ public class SearchlogAnalysis_SheetOne {
             lastEpoch = epoch;
             epoch = generatedJavaDate.getTime();
             timeSinceLastInteraction = epoch - lastEpoch;
+            if(currentTokens.length>4){
+                totalClicks++;
+            }
     }
     
     /**
@@ -154,6 +170,7 @@ public class SearchlogAnalysis_SheetOne {
         if(userId != lastUserId){
             sessionId++;
             timeSinceLastInteraction = 0;
+            totalUsers++;
         } else if(timeSinceLastInteraction > 1800000){
             sessionId++;
         }
@@ -164,13 +181,13 @@ public class SearchlogAnalysis_SheetOne {
      * @return 
      */
     private static String buildNewEntry() {
-        return "\""+sessionId+
+        return sessionId+
                     ","+userId+
                     ","+query+
                     ","+rawDate+
                     ","+generatedJavaDate+
                     ","+timeSinceLastInteraction+
-                    ","+epoch+"\"";
+                    ","+epoch;
     }
 
     /**
