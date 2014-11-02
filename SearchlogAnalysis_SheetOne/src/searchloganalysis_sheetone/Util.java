@@ -1,0 +1,74 @@
+/*
+ * To change this license header, choose License Headers in Project Properties.
+ * To change this template file, choose Tools | Templates
+ * and open the template in the editor.
+ */
+package searchloganalysis_sheetone;
+
+/**
+ *
+ * @author Soeren
+ */
+public class Util {
+    
+    private static final String DEFAULT_ERROR = "Error";
+    
+    private static final String BIG_DATA_LOCATION_LAPTOP = "C:\\Users\\Soean\\Documents\\Uni\\AOL-user-ct-collection\\user-ct-test-collection-01.txt";
+    private static final String BIG_DATA_LOCATION_PC = "Y:\\Uni\\Serachlogs\\AOL-user-ct-collection\\user-ct-test-collection-01.txt";
+    private static final String BIG_DATA_LOCATION_CIP = "C:\\Users\\cip\\AOL-user-ct-collection\\user-ct-test-collection-01.txt";
+    private static final String HEADER = "sessionID,userId,query,rawDatw,javaGenDate,timeSinceLast,epoc";
+    private static final String DATE_FORMAT = "yyyy-MM-dd HH:mm:ss";
+    private static final String ENCODING = "UTF-8";
+    private static final String CSV_LOCATION = "results.txt";
+    private static final String MATRIX_LOCATION = "matrix.txt";
+    
+    private static final int totalDays = 91;
+    private static final int EPOC_30_MINUTES = 1800000;
+    private static final long START_EPOC = 1141193832000l;
+    
+    
+    public static String getDataLocation(int i){
+        switch(i){
+            case 1:
+                return BIG_DATA_LOCATION_LAPTOP;
+            case 2:
+                return BIG_DATA_LOCATION_PC;
+            case 3:
+                return BIG_DATA_LOCATION_CIP;
+            default:
+                return DEFAULT_ERROR;
+        }
+    }
+    
+    public static String getHeader(){
+        return HEADER;
+    }
+    
+    public static String getDateFormat(){
+        return DATE_FORMAT;
+    }
+    
+    public static String getEncoding(){
+        return ENCODING;
+    }
+    
+    public static long minutesToEpoc(int time){
+        return time * 60000;
+    }
+    
+    public static long getStartEpoc(){
+        return START_EPOC;
+    }
+
+    public static int getTotalDays() {
+        return totalDays;
+    }
+    
+    public static String getCSVLocation() {
+        return CSV_LOCATION;
+    }
+
+    public static String getMatrixLocation() {
+        return MATRIX_LOCATION;
+    }
+}
