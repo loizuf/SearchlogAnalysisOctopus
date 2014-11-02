@@ -9,10 +9,9 @@ import java.io.OutputStreamWriter;
 import java.io.UnsupportedEncodingException;
 import java.io.Writer;
 import java.text.ParseException;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.Scanner;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 /**
  * This program reads a TextFile, converts it to an R-friendly format and writes the result in a new .txt
@@ -25,14 +24,15 @@ public class SearchlogAnalysis_SheetOne {
      * 2. Desktop at Home
      * 3. CipPool (typical Location)
      */
-    //private final static String BIG_DATA_LOCATION = "C:\\Users\\Soean\\Documents\\Uni\\AOL-user-ct-collection\\user-ct-test-collection-01.txt";
-    //private final static String BIG_DATA_LOCATION = "Y:\\Uni\\Serachlogs\\AOL-user-ct-collection\\user-ct-test-collection-01.txt";
-    private final static String BIG_DATA_LOCATION = "C:\\Users\\cip\\AOL-user-ct-collection\\user-ct-test-collection-01.txt";
+    
+    private static final int PC_TYPE = 2;
     
     /*
-     * Header Line for Ouput
+     * Boolean constants for writing the matrix (user x days) or the .csv with the queries or both
      */
-    private static final String HEADER = "sessionID,UserID,query,rawDatw,javaGenDate,timeSinceLast,epoch";
+    
+    private static final boolean BUILD_CSV_FILE = true;
+    private static final boolean BUILD_MATRIX_FILE = true;
     
     /*
      * Variables for Output
@@ -46,21 +46,52 @@ public class SearchlogAnalysis_SheetOne {
     private static String rawDate;
     private static Date generatedJavaDate;
     private static long timeSinceLastInteraction;
-    private static long epoch;
-    private static long lastEpoch;
+    private static long epoc;
     
+    /*
+     * Variables for matrix
+     */
+    private static int userQueries = 0;
+    private static long lastEpoc;
+    private static long userLastQueryDate;
+    private static ArrayList<int[]> resultMatrix;
+    private static ArrayList<Integer> userIdRegistry;
+    private static CompressedMatrix cMatrix;
+    private static int NNZ = 0;
+    /*
+     * Debug variables
+     */
+    private static int maxDays = 0;
 
     /**
      * @param args the command line arguments
      */
     public static void main(String[] args) {
+        Writer writerCSV = registerWriter(Util.getCSVLocation());
+        Writer writerMatrix = registerWriter(Util.getMatrixLocation());
+
+        resultMatrix = new ArrayList<>();
+        userIdRegistry = new ArrayList<>();
+        
         resetVariables();
-        Writer writer = registerWriter();
-        readBigData(writer);
-        closeWriter(writer);
-        System.out.println(totalUsers);
-        System.out.println(totalClicks);
+        readBigData(writerCSV);
+        if(BUILD_MATRIX_FILE){
+            writeMatrixFile(writerMatrix);
+            cMatrix = new CompressedMatrix(resultMatrix, NNZ);
+        }
+        
         System.out.println("done");
+    }
+
+    private static Writer registerWriter(String resultFileName) {
+        Writer writer = null;
+        
+        try {
+            writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(resultFileName), Util.getEncoding()));
+        } catch (UnsupportedEncodingException | FileNotFoundException e) {
+            e.printStackTrace();
+        }
+        return writer;
     }
 
     /**
@@ -72,30 +103,27 @@ public class SearchlogAnalysis_SheetOne {
         generatedJavaDate = null;
         timeSinceLastInteraction = 0;
     }
-
-    private static Writer registerWriter() {
-        Writer writer = null;
-        try {
-            writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream("results.txt"), "utf-8"));
-        } catch (UnsupportedEncodingException | FileNotFoundException e) {
-            e.printStackTrace();
-        }
-        return writer;
-    }
     
     /**
      * A scanner is used to read the file.
-     * @param writer 
+     * @param writerCSV 
      */
-    private static void readBigData(Writer writer) {
+    private static void readBigData(Writer writerCSV) {
         Scanner scanner;
         try { 
-            scanner = new Scanner(new File(BIG_DATA_LOCATION), "UTF-8");
-            tokenizeInput(scanner, writer);
+            scanner = new Scanner(new File(Util.getDataLocation(PC_TYPE)), Util.getEncoding());
+            writeHeader(scanner, writerCSV);
+            createResultFile(scanner, writerCSV);
             scanner.close();
+            closeWriter(writerCSV);
         } catch (FileNotFoundException e) { 
             e.printStackTrace(); 
         }
+    }
+
+    private static void writeHeader(Scanner scanner, Writer writer) {
+        scanner.nextLine();
+        writeResults(writer, Util.getHeader());
     }
 
     /**
@@ -103,19 +131,24 @@ public class SearchlogAnalysis_SheetOne {
      * @param scanner
      * @param writer 
      */
-    private static void tokenizeInput(Scanner scanner, Writer writer) {
-        scanner.nextLine();
-        writeResults(writer, HEADER);
+    private static void createResultFile(Scanner scanner, Writer writer) {
+        int[] thisUser = null;
+        thisUser = reinitializeIntArray(thisUser);
+        userIdRegistry.add(0);
         while(scanner.hasNextLine()){
-            String[] currentTokens = getNextLine(scanner);
+            String[] currentTokens = getNextTokens(scanner);
             String newEntry;
             
             setVariables(currentTokens);
             changeSessionIfNecessary();
-            newEntry = buildNewEntry();
-            writeResults(writer, newEntry);
+            thisUser = buildMatrix(thisUser);
+            if(BUILD_CSV_FILE){
+                newEntry = buildNewEntry();
+                writeResults(writer, newEntry);     
+            }
             resetVariables();
         }
+        resultMatrix.remove(0); //off by one correction
     }
 
     /**
@@ -123,7 +156,7 @@ public class SearchlogAnalysis_SheetOne {
      * @param scanner
      * @return 
      */
-    private static String[] getNextLine(Scanner scanner) {
+    private static String[] getNextTokens(Scanner scanner) {
             String currentString = scanner.nextLine();
             String[] currentTokens = currentString.split("\t");
             return currentTokens;
@@ -139,9 +172,9 @@ public class SearchlogAnalysis_SheetOne {
             query = currentTokens[1];
             rawDate = currentTokens[2];
             generatedJavaDate = convertToDate(rawDate);
-            lastEpoch = epoch;
-            epoch = generatedJavaDate.getTime();
-            timeSinceLastInteraction = epoch - lastEpoch;
+            lastEpoc = epoc;
+            epoc = generatedJavaDate.getTime();
+            timeSinceLastInteraction = epoc - lastEpoc;
             if(currentTokens.length>4){
                 totalClicks++;
             }
@@ -155,9 +188,9 @@ public class SearchlogAnalysis_SheetOne {
     private static Date convertToDate(String simpleDate){
         Date generatedDate = null;
         try {
-            generatedDate = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").parse(simpleDate);
-        } catch (ParseException ex) {
-            Logger.getLogger(SearchlogAnalysis_SheetOne.class.getName()).log(Level.SEVERE, null, ex);
+            generatedDate = new java.text.SimpleDateFormat(Util.getDateFormat()).parse(simpleDate);
+        } catch (ParseException e) {
+            e.printStackTrace();
         }
         return generatedDate;
     }
@@ -171,9 +204,24 @@ public class SearchlogAnalysis_SheetOne {
             sessionId++;
             timeSinceLastInteraction = 0;
             totalUsers++;
-        } else if(timeSinceLastInteraction > 1800000){
+        } else if(timeSinceLastInteraction > Util.minutesToEpoc(30)){
             sessionId++;
         }
+    }
+
+    private static int[] buildMatrix(int[] thisUser) {
+        if(userId != lastUserId){
+            userIdRegistry.add(userId);
+            int[] copy = thisUser.clone();
+            resultMatrix.add(copy);
+            thisUser = reinitializeIntArray(thisUser);
+        }
+        int queryDate = (int)((epoc-Util.getStartEpoc())/Util.minutesToEpoc(60*24));
+        if(thisUser[queryDate] != 0){
+            NNZ += 1;
+        }
+        thisUser[queryDate]++;
+        return thisUser;
     }
 
     /**
@@ -187,7 +235,7 @@ public class SearchlogAnalysis_SheetOne {
                     ","+rawDate+
                     ","+generatedJavaDate+
                     ","+timeSinceLastInteraction+
-                    ","+epoch;
+                    ","+epoc;
     }
 
     /**
@@ -210,5 +258,40 @@ public class SearchlogAnalysis_SheetOne {
         catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    private static void logMatrix() {
+        int test = 0;
+        for (int i = 0; i < 10; i++) {
+            String userResults = "";
+            for (int j = 0; j < Util.getTotalDays(); j++) {
+                userResults += resultMatrix.get(i)[j] + ", ";
+                test+=resultMatrix.get(i)[j];
+            }
+            System.out.println("UserID: "+userIdRegistry.get(i+1)+"\n"+userResults);
+            System.out.println(test);
+        }
+    }
+    
+    private static int[] reinitializeIntArray(int[] intArray){
+        intArray = new int[Util.getTotalDays()+1];
+        return intArray;
+    }
+
+    private static void writeMatrixFile(Writer writerMatrix) {
+        for (int i=0; i<resultMatrix.size(); i++){
+            String newEntry = buildNewMatrixLine(i);
+            writeResults(writerMatrix, newEntry);
+        }
+        closeWriter(writerMatrix);
+    }
+
+    private static String buildNewMatrixLine(int n) {
+        String returnString = "";
+        int[] currentMatrixLine = resultMatrix.get(n);
+        for(int i=0; i<currentMatrixLine.length; i++){
+            returnString += currentMatrixLine[i]+" ";
+        }
+        return returnString;
     }
 }
