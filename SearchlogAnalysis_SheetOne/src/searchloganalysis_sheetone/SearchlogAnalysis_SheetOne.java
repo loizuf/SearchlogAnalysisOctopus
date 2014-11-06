@@ -25,14 +25,21 @@ public class SearchlogAnalysis_SheetOne {
      * 3. CipPool (typical Location)
      */
     
-    private static final int PC_TYPE = 2;
+    private static final int PC_TYPE = 1;
     
     /*
      * Boolean constants for writing the matrix (user x days) or the .csv with the queries or both
      */
     
-    private static final boolean BUILD_CSV_FILE = true;
-    private static final boolean BUILD_MATRIX_FILE = true;
+    private static final boolean BUILD_CSV_FILE = false;
+    private static final boolean BUILD_DAILY_COUNT_MATRIX_FILE = false;
+    private static final boolean BUILD_CHARACTER_COUNT_MATRIX_FILE = false;
+    
+    /*
+     * Boolean to read the file again or to read the created result.txt
+     */
+    
+    private static final boolean readResults = true;
     
     /*
      * Variables for Output
@@ -43,8 +50,8 @@ public class SearchlogAnalysis_SheetOne {
     private static int totalUsers = 0;
     private static int totalClicks = 0;
     private static String query;
-    private static String rawDate;
-    private static Date generatedJavaDate;
+    //private static String rawDate;
+    //private static Date generatedJavaDate;
     private static long timeSinceLastInteraction;
     private static long epoc;
     
@@ -54,7 +61,8 @@ public class SearchlogAnalysis_SheetOne {
     private static int userQueries = 0;
     private static long lastEpoc;
     private static long userLastQueryDate;
-    private static ArrayList<int[]> resultMatrix;
+    private static ArrayList<int[]> dailyCountMatrix;
+    private static ArrayList<Integer> characterLengthMatrix;
     private static ArrayList<Integer> userIdRegistry;
     private static CompressedMatrix cMatrix;
     private static int NNZ = 0;
@@ -67,17 +75,21 @@ public class SearchlogAnalysis_SheetOne {
      * @param args the command line arguments
      */
     public static void main(String[] args) {
-        Writer writerCSV = registerWriter(Util.getCSVLocation());
-        Writer writerMatrix = registerWriter(Util.getMatrixLocation());
 
-        resultMatrix = new ArrayList<>();
+        dailyCountMatrix = new ArrayList<>();
+        characterLengthMatrix = new ArrayList<Integer>();
         userIdRegistry = new ArrayList<>();
         
         resetVariables();
-        readBigData(writerCSV);
-        if(BUILD_MATRIX_FILE){
+        readBigData();
+        checkForBots();
+        if(BUILD_DAILY_COUNT_MATRIX_FILE){
+            Writer writerMatrix = registerWriter(Util.getDailyCountMatrixLocation());
             writeMatrixFile(writerMatrix);
-            cMatrix = new CompressedMatrix(resultMatrix, NNZ);
+        }
+        if(BUILD_CHARACTER_COUNT_MATRIX_FILE){
+            Writer writerMatrix = registerWriter(Util.getCharacterCountMatrixLocation());
+            writeMatrixFile(writerMatrix);
         }
         
         System.out.println("done");
@@ -99,39 +111,40 @@ public class SearchlogAnalysis_SheetOne {
      */
     private static void resetVariables() {
         query = "";
-        rawDate = "";
-        generatedJavaDate = null;
+        //rawDate = "";
+        //generatedJavaDate = null;
         timeSinceLastInteraction = 0;
     }
     
     /**
-     * A scanner is used to read the file.
-     * @param writerCSV 
+     * A scanner is used to read the file. 
      */
-    private static void readBigData(Writer writerCSV) {
+    private static void readBigData() {
         Scanner scanner;
         try { 
             scanner = new Scanner(new File(Util.getDataLocation(PC_TYPE)), Util.getEncoding());
-            writeHeader(scanner, writerCSV);
-            createResultFile(scanner, writerCSV);
+            scanner.nextLine();
+            createResultFile(scanner);
             scanner.close();
-            closeWriter(writerCSV);
         } catch (FileNotFoundException e) { 
             e.printStackTrace(); 
         }
     }
 
     private static void writeHeader(Scanner scanner, Writer writer) {
-        scanner.nextLine();
         writeResults(writer, Util.getHeader());
     }
 
     /**
      * The read lines get splittet, variables get set and with them a new String (new line) gets created and written in the results.txt.
      * @param scanner
-     * @param writer 
      */
-    private static void createResultFile(Scanner scanner, Writer writer) {
+    private static void createResultFile(Scanner scanner) {
+        Writer writerCSV;
+        if(BUILD_CSV_FILE){
+            writerCSV = registerWriter(Util.getCSVLocation());
+            writeHeader(scanner, writerCSV);
+        }
         int[] thisUser = null;
         thisUser = reinitializeIntArray(thisUser);
         userIdRegistry.add(0);
@@ -141,14 +154,18 @@ public class SearchlogAnalysis_SheetOne {
             
             setVariables(currentTokens);
             changeSessionIfNecessary();
-            thisUser = buildMatrix(thisUser);
+            thisUser = buildDailyCountMatrix(thisUser);
+            addToCharacterLengthMatrix();
             if(BUILD_CSV_FILE){
                 newEntry = buildNewEntry();
-                writeResults(writer, newEntry);     
+                writeResults(writerCSV, newEntry);     
             }
             resetVariables();
         }
-        resultMatrix.remove(0); //off by one correction
+        if(BUILD_CSV_FILE){
+            closeWriter(writerCSV);
+        }
+        dailyCountMatrix.remove(0); //off by one correction
     }
 
     /**
@@ -170,10 +187,10 @@ public class SearchlogAnalysis_SheetOne {
             lastUserId = userId;
             userId = Integer.parseInt(currentTokens[0]);
             query = currentTokens[1];
-            rawDate = currentTokens[2];
-            generatedJavaDate = convertToDate(rawDate);
+            //rawDate = currentTokens[2];
+            //generatedJavaDate = convertToDate(rawDate);
             lastEpoc = epoc;
-            epoc = generatedJavaDate.getTime();
+            epoc = convertToDate(currentTokens[2]).getTime();
             timeSinceLastInteraction = epoc - lastEpoc;
             if(currentTokens.length>4){
                 totalClicks++;
@@ -209,11 +226,11 @@ public class SearchlogAnalysis_SheetOne {
         }
     }
 
-    private static int[] buildMatrix(int[] thisUser) {
+    private static int[] buildDailyCountMatrix(int[] thisUser) {
         if(userId != lastUserId){
             userIdRegistry.add(userId);
             int[] copy = thisUser.clone();
-            resultMatrix.add(copy);
+            dailyCountMatrix.add(copy);
             thisUser = reinitializeIntArray(thisUser);
         }
         int queryDate = (int)((epoc-Util.getStartEpoc())/Util.minutesToEpoc(60*24));
@@ -232,8 +249,6 @@ public class SearchlogAnalysis_SheetOne {
         return sessionId+
                     ","+userId+
                     ","+query+
-                    ","+rawDate+
-                    ","+generatedJavaDate+
                     ","+timeSinceLastInteraction+
                     ","+epoc;
     }
@@ -265,8 +280,8 @@ public class SearchlogAnalysis_SheetOne {
         for (int i = 0; i < 10; i++) {
             String userResults = "";
             for (int j = 0; j < Util.getTotalDays(); j++) {
-                userResults += resultMatrix.get(i)[j] + ", ";
-                test+=resultMatrix.get(i)[j];
+                userResults += dailyCountMatrix.get(i)[j] + ", ";
+                test+=dailyCountMatrix.get(i)[j];
             }
             System.out.println("UserID: "+userIdRegistry.get(i+1)+"\n"+userResults);
             System.out.println(test);
@@ -279,7 +294,7 @@ public class SearchlogAnalysis_SheetOne {
     }
 
     private static void writeMatrixFile(Writer writerMatrix) {
-        for (int i=0; i<resultMatrix.size(); i++){
+        for (int i=0; i<dailyCountMatrix.size(); i++){
             String newEntry = buildNewMatrixLine(i);
             writeResults(writerMatrix, newEntry);
         }
@@ -288,10 +303,27 @@ public class SearchlogAnalysis_SheetOne {
 
     private static String buildNewMatrixLine(int n) {
         String returnString = "";
-        int[] currentMatrixLine = resultMatrix.get(n);
+        int[] currentMatrixLine = dailyCountMatrix.get(n);
         for(int i=0; i<currentMatrixLine.length; i++){
             returnString += currentMatrixLine[i]+" ";
         }
         return returnString;
+    }
+
+    private static void checkForBots() {
+        int check = 0;
+        for (int i = 0; i < dailyCountMatrix.size(); i++) {
+            int[] get = dailyCountMatrix.get(i);
+            for (int j = 0; j < dailyCountMatrix.get(i).length; j++) {
+                if(get[j] >= Util.getQueryAmountBorder()){
+                    check++;
+                }
+            }
+        }
+        System.out.println(check);
+    }
+
+    private static void addToCharacterLengthMatrix() {
+        characterLengthMatrix.add(query.length());
     }
 }

@@ -20,10 +20,12 @@ public class Util {
     private static final String DATE_FORMAT = "yyyy-MM-dd HH:mm:ss";
     private static final String ENCODING = "UTF-8";
     private static final String CSV_LOCATION = "results.txt";
-    private static final String MATRIX_LOCATION = "matrix.txt";
+    private static final String DAILY_COUNT_MATRIX_LOCATION = "dailyCountMatrix.txt";
+    private static final String CHARACTER_COUNT_MATRIX_LOCATION = "characterCountMatrix.txt";
     
     private static final int totalDays = 91;
     private static final int EPOC_30_MINUTES = 1800000;
+    private static final int queryAmountBorder = 100;
     private static final long START_EPOC = 1141193832000l;
     
     
@@ -68,7 +70,21 @@ public class Util {
         return CSV_LOCATION;
     }
 
-    public static String getMatrixLocation() {
-        return MATRIX_LOCATION;
+    public static String getDailyCountMatrixLocation() {
+        return DAILY_COUNT_MATRIX_LOCATION;
+    }
+
+    /**
+     * @return the queryAmountBorder
+     */
+    public static int getQueryAmountBorder() {
+        return queryAmountBorder;
+    }
+
+    /**
+     * @return the CHARACTER_COUNT_MATRIX_LOCATION
+     */
+    public static String getCharacterCountMatrixLocation() {
+        return CHARACTER_COUNT_MATRIX_LOCATION;
     }
 }
