@@ -11,6 +11,7 @@ import java.io.Writer;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.Random;
 import java.util.Scanner;
 
 /**
@@ -32,7 +33,8 @@ public class SearchlogAnalysis_SheetOne {
      */
     
     private static final boolean BUILD_CSV_FILE = false;
-    private static final boolean BUILD_DAILY_COUNT_MATRIX_FILE = false;
+    private static final boolean BUILD_DAILY_COUNT_MATRIX_FILE = true;
+    private static final boolean BUILD_SAMPLE_DAILY_COUNT_MATRIX_FILE = true;
     private static final boolean BUILD_CHARACTER_COUNT_MATRIX_FILE = false;
     
     /*
@@ -64,8 +66,10 @@ public class SearchlogAnalysis_SheetOne {
     private static ArrayList<int[]> dailyCountMatrix;
     private static ArrayList<Integer> characterLengthMatrix;
     private static ArrayList<Integer> userIdRegistry;
+    private static int[] sampleUser;
     private static CompressedMatrix cMatrix;
     private static int NNZ = 0;
+    private static Writer writerSampleMatrix;
     /*
      * Debug variables
      */
@@ -84,6 +88,10 @@ public class SearchlogAnalysis_SheetOne {
         readBigData();
         checkForBots();
         if(BUILD_DAILY_COUNT_MATRIX_FILE){
+            if(BUILD_SAMPLE_DAILY_COUNT_MATRIX_FILE){
+                sampleUser = getRandomUserIDs();
+                writerSampleMatrix = registerWriter(Util.getDailySampleCountMatrixLocation());
+            }
             Writer writerMatrix = registerWriter(Util.getDailyCountMatrixLocation());
             writeMatrixFile(writerMatrix);
         }
@@ -297,6 +305,11 @@ public class SearchlogAnalysis_SheetOne {
         for (int i=0; i<dailyCountMatrix.size(); i++){
             String newEntry = buildNewMatrixLine(i);
             writeResults(writerMatrix, newEntry);
+            if(BUILD_SAMPLE_DAILY_COUNT_MATRIX_FILE){
+                if(Array.){
+                    writeResults(writerSampleMatrix, newEntry);
+                }
+            }
         }
         closeWriter(writerMatrix);
     }
@@ -325,5 +338,14 @@ public class SearchlogAnalysis_SheetOne {
 
     private static void addToCharacterLengthMatrix() {
         characterLengthMatrix.add(query.length());
+    }
+
+    private static int[] getRandomUserIDs() {
+        Random r = new Random();
+        int[] randomArray = new int[Util.getSampleSize()];
+        for(int i = 0; i<randomArray.length; i++){
+            randomArray[i] = r.nextInt(totalUsers+1);
+        }
+        return randomArray;
     }
 }
