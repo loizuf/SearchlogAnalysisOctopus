@@ -16,13 +16,13 @@ public class Util {
     private static final String BIG_DATA_LOCATION_LAPTOP = "C:\\Users\\Soean\\Documents\\Uni\\AOL-user-ct-collection\\user-ct-test-collection-01.txt";
     private static final String BIG_DATA_LOCATION_PC = "Y:\\Uni\\Serachlogs\\AOL-user-ct-collection\\user-ct-test-collection-01.txt";
     private static final String BIG_DATA_LOCATION_CIP = "C:\\Users\\cip\\AOL-user-ct-collection\\user-ct-test-collection-01.txt";
-    private static final String HEADER = "sessionID,userId,query,rawDatw,javaGenDate,timeSinceLast,epoc";
+    private static final String HEADER = "sessionID,userId,query,timeSinceLast,epoc,queryLength,queryWordCount,sessionLength,sessionQueryCount,clickRank";
     private static final String DATE_FORMAT = "yyyy-MM-dd HH:mm:ss";
     private static final String ENCODING = "UTF-8";
     private static final String CSV_LOCATION = "results.txt";
     private static final String DAILY_COUNT_MATRIX_LOCATION = "dailyCountMatrix.txt";
     private static final String DAILY_SAMPLE_COUNT_MATRIX_LOCATION = "sampleDailyCountMatrix.txt";
-    private static final String CHARACTER_COUNT_MATRIX_LOCATION = "characterCountMatrix.txt";
+    private static final String CHARACTER_COUNT_ARRAY_LOCATION = "characterCountMatrix.txt";
     
     private static final int totalDays = 91;
     private static final int EPOC_30_MINUTES = 1800000;
@@ -87,7 +87,7 @@ public class Util {
      * @return the CHARACTER_COUNT_MATRIX_LOCATION
      */
     public static String getCharacterCountMatrixLocation() {
-        return CHARACTER_COUNT_MATRIX_LOCATION;
+        return CHARACTER_COUNT_ARRAY_LOCATION;
     }
 
     /**

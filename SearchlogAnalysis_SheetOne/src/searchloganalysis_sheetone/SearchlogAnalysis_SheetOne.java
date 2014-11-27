@@ -10,6 +10,7 @@ import java.io.UnsupportedEncodingException;
 import java.io.Writer;
 import java.text.ParseException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.Random;
 import java.util.Scanner;
@@ -32,10 +33,9 @@ public class SearchlogAnalysis_SheetOne {
      * Boolean constants for writing the matrix (user x days) or the .csv with the queries or both
      */
     
-    private static final boolean BUILD_CSV_FILE = false;
-    private static final boolean BUILD_DAILY_COUNT_MATRIX_FILE = true;
-    private static final boolean BUILD_SAMPLE_DAILY_COUNT_MATRIX_FILE = true;
-    private static final boolean BUILD_CHARACTER_COUNT_MATRIX_FILE = false;
+    private static final boolean BUILD_CSV_FILE = true;
+    private static final boolean BUILD_DAILY_COUNT_MATRIX_FILE = false;
+    private static final boolean BUILD_SAMPLE_DAILY_COUNT_MATRIX_FILE = false;
     
     /*
      * Boolean to read the file again or to read the created result.txt
@@ -49,12 +49,18 @@ public class SearchlogAnalysis_SheetOne {
     private static int sessionId = 0;
     private static int userId = 0;
     private static int lastUserId;
+    private static int wordCount;
+    private static int currentRank;
     private static int totalUsers = 0;
     private static int totalClicks = 0;
+    private static int queriesPerSession = 1;
+    private static int queriesLastSession = 1;
     private static String query;
     //private static String rawDate;
     //private static Date generatedJavaDate;
     private static long timeSinceLastInteraction;
+    private static long sessionLengthTime;
+    private static long lastSessionLengthTime;
     private static long epoc;
     
     /*
@@ -64,8 +70,8 @@ public class SearchlogAnalysis_SheetOne {
     private static long lastEpoc;
     private static long userLastQueryDate;
     private static ArrayList<int[]> dailyCountMatrix;
-    private static ArrayList<Integer> characterLengthMatrix;
     private static ArrayList<Integer> userIdRegistry;
+    private static ArrayList<Integer> characterLengthArray;
     private static int[] sampleUser;
     private static CompressedMatrix cMatrix;
     private static int NNZ = 0;
@@ -81,8 +87,10 @@ public class SearchlogAnalysis_SheetOne {
     public static void main(String[] args) {
 
         dailyCountMatrix = new ArrayList<>();
-        characterLengthMatrix = new ArrayList<Integer>();
+        characterLengthArray = new ArrayList<>();
         userIdRegistry = new ArrayList<>();
+        
+       // test.testArray();
         
         resetVariables();
         readBigData();
@@ -95,10 +103,9 @@ public class SearchlogAnalysis_SheetOne {
             Writer writerMatrix = registerWriter(Util.getDailyCountMatrixLocation());
             writeMatrixFile(writerMatrix);
         }
-        if(BUILD_CHARACTER_COUNT_MATRIX_FILE){
-            Writer writerMatrix = registerWriter(Util.getCharacterCountMatrixLocation());
-            writeMatrixFile(writerMatrix);
-        }
+        
+        Writer writerCharacterCountArray = registerWriter(Util.getCharacterCountMatrixLocation());
+        writeCharacterCountArray(writerCharacterCountArray);
         
         System.out.println("done");
     }
@@ -122,6 +129,9 @@ public class SearchlogAnalysis_SheetOne {
         //rawDate = "";
         //generatedJavaDate = null;
         timeSinceLastInteraction = 0;
+        lastSessionLengthTime = 0;
+        queriesLastSession = 1;
+        currentRank = 0;
     }
     
     /**
@@ -153,6 +163,7 @@ public class SearchlogAnalysis_SheetOne {
             writerCSV = registerWriter(Util.getCSVLocation());
             writeHeader(scanner, writerCSV);
         }
+        
         int[] thisUser = null;
         thisUser = reinitializeIntArray(thisUser);
         userIdRegistry.add(0);
@@ -161,9 +172,17 @@ public class SearchlogAnalysis_SheetOne {
             String newEntry;
             
             setVariables(currentTokens);
-            changeSessionIfNecessary();
+            fillCharacterLengthArrayList();
+            if(changeSessionIfNecessary()){
+                sessionLengthTime = 0;
+                queriesPerSession = 1;
+            } else {
+                sessionLengthTime += timeSinceLastInteraction;
+                lastSessionLengthTime = sessionLengthTime;
+                queriesPerSession++;
+                queriesLastSession = queriesPerSession;
+            }
             thisUser = buildDailyCountMatrix(thisUser);
-            addToCharacterLengthMatrix();
             if(BUILD_CSV_FILE){
                 newEntry = buildNewEntry();
                 writeResults(writerCSV, newEntry);     
@@ -195,6 +214,8 @@ public class SearchlogAnalysis_SheetOne {
             lastUserId = userId;
             userId = Integer.parseInt(currentTokens[0]);
             query = currentTokens[1];
+            String[] arr = query.split(",|\\s|-");
+            wordCount = arr.length;
             //rawDate = currentTokens[2];
             //generatedJavaDate = convertToDate(rawDate);
             lastEpoc = epoc;
@@ -202,6 +223,7 @@ public class SearchlogAnalysis_SheetOne {
             timeSinceLastInteraction = epoc - lastEpoc;
             if(currentTokens.length>4){
                 totalClicks++;
+                currentRank = Integer.parseInt(currentTokens[3]);
             }
     }
     
@@ -224,14 +246,17 @@ public class SearchlogAnalysis_SheetOne {
      * If the User-ID of the current query is different to the one before the sessionID ticks up (Also timeSinceLastInteraction = 0).
      * If the User-ID is the same but the query is more than 30 minutes old the sessionID ticks up.
      */
-    private static void changeSessionIfNecessary() {
+    private static boolean changeSessionIfNecessary() {
         if(userId != lastUserId){
             sessionId++;
             timeSinceLastInteraction = 0;
             totalUsers++;
+            return true;
         } else if(timeSinceLastInteraction > Util.minutesToEpoc(30)){
             sessionId++;
+            return true;
         }
+        return false;
     }
 
     private static int[] buildDailyCountMatrix(int[] thisUser) {
@@ -254,11 +279,17 @@ public class SearchlogAnalysis_SheetOne {
      * @return 
      */
     private static String buildNewEntry() {
-        return sessionId+
-                    ","+userId+
-                    ","+query+
-                    ","+timeSinceLastInteraction+
-                    ","+epoc;
+        String returnString =sessionId+
+                        ","+userId+
+                        ","+query+
+                        ","+timeSinceLastInteraction+
+                        ","+epoc+
+                        ","+query.length()+
+                        ","+wordCount+
+                        ","+lastSessionLengthTime+
+                        ","+queriesLastSession+
+                        ","+currentRank;
+        return returnString;
     }
 
     /**
@@ -306,7 +337,7 @@ public class SearchlogAnalysis_SheetOne {
             String newEntry = buildNewMatrixLine(i);
             writeResults(writerMatrix, newEntry);
             if(BUILD_SAMPLE_DAILY_COUNT_MATRIX_FILE){
-                if(Array.){
+                if(Arrays.asList(sampleUser).contains(i)){
                     writeResults(writerSampleMatrix, newEntry);
                 }
             }
@@ -325,19 +356,14 @@ public class SearchlogAnalysis_SheetOne {
 
     private static void checkForBots() {
         int check = 0;
-        for (int i = 0; i < dailyCountMatrix.size(); i++) {
-            int[] get = dailyCountMatrix.get(i);
-            for (int j = 0; j < dailyCountMatrix.get(i).length; j++) {
+        for (int[] get : dailyCountMatrix) {
+            for (int j = 0; j < get.length; j++) {
                 if(get[j] >= Util.getQueryAmountBorder()){
                     check++;
                 }
             }
         }
         System.out.println(check);
-    }
-
-    private static void addToCharacterLengthMatrix() {
-        characterLengthMatrix.add(query.length());
     }
 
     private static int[] getRandomUserIDs() {
@@ -347,5 +373,16 @@ public class SearchlogAnalysis_SheetOne {
             randomArray[i] = r.nextInt(totalUsers+1);
         }
         return randomArray;
+    }
+    
+    private static void writeCharacterCountArray (Writer writerCharacterCountArray) {
+        for (int i = 0; i < characterLengthArray.size()-1; i++) {
+            writeResults(writerCharacterCountArray, Integer.toString(characterLengthArray.get(i)));
+        }
+        writeResults(writerCharacterCountArray, Integer.toString(characterLengthArray.get(characterLengthArray.size()-1)));
+    }
+
+    private static void fillCharacterLengthArrayList() {
+        characterLengthArray.add(query.length());
     }
 }
