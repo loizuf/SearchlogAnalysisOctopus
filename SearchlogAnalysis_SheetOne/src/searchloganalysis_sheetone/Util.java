@@ -27,8 +27,8 @@ public class Util {
     private static final int totalDays = 91;
     private static final int EPOC_30_MINUTES = 1800000;
     private static final int queryAmountBorder = 100;
-    private static final long START_EPOC = 1141193832000l;
     private static final int SAMPLE_SIZE = 1000;
+    private static final long START_EPOC = 1141193832000l;
     
     
     public static String getDataLocation(int i){
@@ -76,31 +76,19 @@ public class Util {
         return DAILY_COUNT_MATRIX_LOCATION;
     }
 
-    /**
-     * @return the queryAmountBorder
-     */
     public static int getQueryAmountBorder() {
         return queryAmountBorder;
     }
 
-    /**
-     * @return the CHARACTER_COUNT_MATRIX_LOCATION
-     */
     public static String getCharacterCountMatrixLocation() {
         return CHARACTER_COUNT_ARRAY_LOCATION;
     }
 
-    /**
-     * @return the SAMPLE_SIZE
-     */
     public static int getSampleSize() {
         return SAMPLE_SIZE;
     }
 
-    /**
-     * @return the DAILY_SAMPLE_COUNT_MATRIX_LOCATION
-     */
-    public static String getDailySampleCountMatrixLocation() {
+    public static String getSampleDailyCountMatrixLocation() {
         return DAILY_SAMPLE_COUNT_MATRIX_LOCATION;
     }
 }

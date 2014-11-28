@@ -9,6 +9,7 @@ import java.io.OutputStreamWriter;
 import java.io.UnsupportedEncodingException;
 import java.io.Writer;
 import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
@@ -30,18 +31,12 @@ public class SearchlogAnalysis_SheetOne {
     private static final int PC_TYPE = 1;
     
     /*
-     * Boolean constants for writing the matrix (user x days) or the .csv with the queries or both
+     * Boolean constants for writing things
      */
     
     private static final boolean BUILD_CSV_FILE = true;
     private static final boolean BUILD_DAILY_COUNT_MATRIX_FILE = false;
     private static final boolean BUILD_SAMPLE_DAILY_COUNT_MATRIX_FILE = false;
-    
-    /*
-     * Boolean to read the file again or to read the created result.txt
-     */
-    
-    private static final boolean readResults = true;
     
     /*
      * Variables for Output
@@ -53,63 +48,47 @@ public class SearchlogAnalysis_SheetOne {
     private static int currentRank;
     private static int totalUsers = 0;
     private static int totalClicks = 0;
+    private static int flag = 0;
     private static int queriesPerSession = 1;
     private static int queriesLastSession = 1;
-    private static String query;
-    //private static String rawDate;
-    //private static Date generatedJavaDate;
     private static long timeSinceLastInteraction;
     private static long sessionLengthTime;
     private static long lastSessionLengthTime;
     private static long epoc;
+    private static long lastEpoc;
+    private static String query;
     
     /*
      * Variables for matrix
      */
-    private static int userQueries = 0;
-    private static long lastEpoc;
-    private static long userLastQueryDate;
-    private static ArrayList<int[]> dailyCountMatrix;
-    private static ArrayList<Integer> userIdRegistry;
-    private static ArrayList<Integer> characterLengthArray;
-    private static int[] sampleUser;
-    private static CompressedMatrix cMatrix;
-    private static int NNZ = 0;
-    private static Writer writerSampleMatrix;
+    private static DailyCountMatrixBuilder matrixBuilder;
+    
     /*
-     * Debug variables
-     */
-    private static int maxDays = 0;
+    private static int NNZ = 0;
+    private static int[] sampleUser;
+    private static ArrayList<int[]> dailyCountMatrix;
+    private static Writer writerSampleMatrix;
+    */
 
-    /**
-     * @param args the command line arguments
-     */
     public static void main(String[] args) {
-
-        dailyCountMatrix = new ArrayList<>();
-        characterLengthArray = new ArrayList<>();
-        userIdRegistry = new ArrayList<>();
         
-       // test.testArray();
-        
+        // This part is only necessary for the first sheet. Everything final should be done here and all information should be written in the result.txt
+        matrixBuilder = new DailyCountMatrixBuilder(Util.getTotalDays(), BUILD_SAMPLE_DAILY_COUNT_MATRIX_FILE);
         resetVariables();
+        
         readBigData();
         checkForBots();
+        
         if(BUILD_DAILY_COUNT_MATRIX_FILE){
             if(BUILD_SAMPLE_DAILY_COUNT_MATRIX_FILE){
-                sampleUser = getRandomUserIDs();
-                writerSampleMatrix = registerWriter(Util.getDailySampleCountMatrixLocation());
+                matrixBuilder.writeFile(BUILD_SAMPLE_DAILY_COUNT_MATRIX_FILE);
             }
-            Writer writerMatrix = registerWriter(Util.getDailyCountMatrixLocation());
-            writeMatrixFile(writerMatrix);
         }
-        
-        Writer writerCharacterCountArray = registerWriter(Util.getCharacterCountMatrixLocation());
-        writeCharacterCountArray(writerCharacterCountArray);
         
         System.out.println("done");
     }
-
+    
+    /* Help functions */
     private static Writer registerWriter(String resultFileName) {
         Writer writer = null;
         
@@ -121,9 +100,24 @@ public class SearchlogAnalysis_SheetOne {
         return writer;
     }
 
-    /**
-     * Resets Variables which change from query to query
-     */
+    private static void closeWriter(Writer writer) {
+        try {
+            writer.close();
+        }
+        catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+    
+    private static int[] getRandomUserIDs() {
+        Random r = new Random();
+        int[] randomArray = new int[Util.getSampleSize()];
+        for(int i = 0; i<randomArray.length; i++){
+            randomArray[i] = r.nextInt(totalUsers+1);
+        }
+        return randomArray;
+    }
+
     private static void resetVariables() {
         query = "";
         //rawDate = "";
@@ -134,9 +128,12 @@ public class SearchlogAnalysis_SheetOne {
         currentRank = 0;
     }
     
-    /**
-     * A scanner is used to read the file. 
-     */
+    private static void writeCSVHeader(Scanner scanner, Writer writer) {
+        writeResults(writer, Util.getHeader());
+    }
+    /* End help-functions */
+    
+    /* Data is read, analyzed and written into a result file */ 
     private static void readBigData() {
         Scanner scanner;
         try { 
@@ -149,30 +146,28 @@ public class SearchlogAnalysis_SheetOne {
         }
     }
 
-    private static void writeHeader(Scanner scanner, Writer writer) {
-        writeResults(writer, Util.getHeader());
-    }
-
     /**
-     * The read lines get splittet, variables get set and with them a new String (new line) gets created and written in the results.txt.
-     * @param scanner
+     * The read lines get splittet, variables get set and with them a new String (new line) gets created and written in the results.txt
      */
     private static void createResultFile(Scanner scanner) {
         Writer writerCSV;
+        // wirter gets initialized only when the file gets written to prevent deleting the old file in the same location
+        
         if(BUILD_CSV_FILE){
             writerCSV = registerWriter(Util.getCSVLocation());
-            writeHeader(scanner, writerCSV);
+            writeCSVHeader(scanner, writerCSV);
         }
         
-        int[] thisUser = null;
-        thisUser = reinitializeIntArray(thisUser);
-        userIdRegistry.add(0);
         while(scanner.hasNextLine()){
             String[] currentTokens = getNextTokens(scanner);
             String newEntry;
             
+            /* Start getting the data of one user and writing it in a file*/
+            
+            // This sets local variables which are used later on
             setVariables(currentTokens);
-            fillCharacterLengthArrayList();
+            
+            // advances session and counts some variables for measuring the session length
             if(changeSessionIfNecessary()){
                 sessionLengthTime = 0;
                 queriesPerSession = 1;
@@ -182,42 +177,38 @@ public class SearchlogAnalysis_SheetOne {
                 queriesPerSession++;
                 queriesLastSession = queriesPerSession;
             }
-            thisUser = buildDailyCountMatrix(thisUser);
+            
+            // writes new line in file
             if(BUILD_CSV_FILE){
                 newEntry = buildNewEntry();
                 writeResults(writerCSV, newEntry);     
             }
+            
+            /* end data of one user */
+            
+            buildDailyCountMatrix();
             resetVariables();
         }
         if(BUILD_CSV_FILE){
             closeWriter(writerCSV);
         }
-        dailyCountMatrix.remove(0); //off by one correction
+        matrixBuilder.correctOffByOne();
     }
 
-    /**
-     * The read lines get splittet at a Tabulator.
-     * @param scanner
-     * @return 
-     */
+    // The read lines get splittet at a Tabulator.
     private static String[] getNextTokens(Scanner scanner) {
             String currentString = scanner.nextLine();
             String[] currentTokens = currentString.split("\t");
             return currentTokens;
     }
 
-    /**
-     * The read properties of the query are being written in the variables.
-     * @param currentTokens 
-     */
+    // The read properties of the query are being written in the variables.
     private static void setVariables(String[] currentTokens) {
             lastUserId = userId;
             userId = Integer.parseInt(currentTokens[0]);
             query = currentTokens[1];
             String[] arr = query.split(",|\\s|-");
             wordCount = arr.length;
-            //rawDate = currentTokens[2];
-            //generatedJavaDate = convertToDate(rawDate);
             lastEpoc = epoc;
             epoc = convertToDate(currentTokens[2]).getTime();
             timeSinceLastInteraction = epoc - lastEpoc;
@@ -227,25 +218,19 @@ public class SearchlogAnalysis_SheetOne {
             }
     }
     
-    /**
-     * Converts Date from the read Format ("yyyy-MM-dd HH:mm:ss") to a Java-Date Object. Epoch can be retreived via the Date.getTime() method.
-     * @param simpleDate
-     * @return 
-     */
+    // Converts Date from the read Format ("yyyy-MM-dd HH:mm:ss") to a Java-Date Object. Epoch can be retreived via the Date.getTime() method.
     private static Date convertToDate(String simpleDate){
-        Date generatedDate = null;
         try {
-            generatedDate = new java.text.SimpleDateFormat(Util.getDateFormat()).parse(simpleDate);
-        } catch (ParseException e) {
-            e.printStackTrace();
+            return new SimpleDateFormat(Util.getDateFormat()).parse(simpleDate);
+        } catch (ParseException ex) {
+            System.out.println("Something went wrong while parsing the Date");
+            System.exit(1);
         }
-        return generatedDate;
+        return null;
     }
 
-    /**
-     * If the User-ID of the current query is different to the one before the sessionID ticks up (Also timeSinceLastInteraction = 0).
-     * If the User-ID is the same but the query is more than 30 minutes old the sessionID ticks up.
-     */
+     // If the User-ID of the current query is different to the one before the sessionID ticks up (Also timeSinceLastInteraction = 0).
+     // If the User-ID is the same but the query is more than 30 minutes old the sessionID ticks up.
     private static boolean changeSessionIfNecessary() {
         if(userId != lastUserId){
             sessionId++;
@@ -259,19 +244,12 @@ public class SearchlogAnalysis_SheetOne {
         return false;
     }
 
-    private static int[] buildDailyCountMatrix(int[] thisUser) {
+    private static void buildDailyCountMatrix() {
         if(userId != lastUserId){
-            userIdRegistry.add(userId);
-            int[] copy = thisUser.clone();
-            dailyCountMatrix.add(copy);
-            thisUser = reinitializeIntArray(thisUser);
+            matrixBuilder.addNewRow(userId);
         }
         int queryDate = (int)((epoc-Util.getStartEpoc())/Util.minutesToEpoc(60*24));
-        if(thisUser[queryDate] != 0){
-            NNZ += 1;
-        }
-        thisUser[queryDate]++;
-        return thisUser;
+        matrixBuilder.countUserQueryDayUp(queryDate);
     }
 
     /**
@@ -292,24 +270,11 @@ public class SearchlogAnalysis_SheetOne {
         return returnString;
     }
 
-    /**
-     * Writes in the results.txt
-     * @param writer
-     * @param newEntry 
-     */
+    // Writes in the results.txt
     private static void writeResults(Writer writer, String newEntry) {
         try {
             writer.write(newEntry + "\n");
         } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-    private static void closeWriter(Writer writer) {
-        try {
-            writer.close();
-        }
-        catch (Exception e) {
             e.printStackTrace();
         }
     }
@@ -325,11 +290,6 @@ public class SearchlogAnalysis_SheetOne {
             System.out.println("UserID: "+userIdRegistry.get(i+1)+"\n"+userResults);
             System.out.println(test);
         }
-    }
-    
-    private static int[] reinitializeIntArray(int[] intArray){
-        intArray = new int[Util.getTotalDays()+1];
-        return intArray;
     }
 
     private static void writeMatrixFile(Writer writerMatrix) {
@@ -364,25 +324,5 @@ public class SearchlogAnalysis_SheetOne {
             }
         }
         System.out.println(check);
-    }
-
-    private static int[] getRandomUserIDs() {
-        Random r = new Random();
-        int[] randomArray = new int[Util.getSampleSize()];
-        for(int i = 0; i<randomArray.length; i++){
-            randomArray[i] = r.nextInt(totalUsers+1);
-        }
-        return randomArray;
-    }
-    
-    private static void writeCharacterCountArray (Writer writerCharacterCountArray) {
-        for (int i = 0; i < characterLengthArray.size()-1; i++) {
-            writeResults(writerCharacterCountArray, Integer.toString(characterLengthArray.get(i)));
-        }
-        writeResults(writerCharacterCountArray, Integer.toString(characterLengthArray.get(characterLengthArray.size()-1)));
-    }
-
-    private static void fillCharacterLengthArrayList() {
-        characterLengthArray.add(query.length());
     }
 }
