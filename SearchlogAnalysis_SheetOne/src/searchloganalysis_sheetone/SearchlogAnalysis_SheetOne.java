@@ -10,11 +10,11 @@ import java.io.UnsupportedEncodingException;
 import java.io.Writer;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Date;
 import java.util.Random;
 import java.util.Scanner;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * This program reads a TextFile, converts it to an R-friendly format and writes the result in a new .txt
@@ -34,9 +34,10 @@ public class SearchlogAnalysis_SheetOne {
      * Boolean constants for writing things
      */
     
-    private static final boolean BUILD_CSV_FILE = true;
+    private static final boolean BUILD_CSV_FILE = false;
     private static final boolean BUILD_DAILY_COUNT_MATRIX_FILE = false;
     private static final boolean BUILD_SAMPLE_DAILY_COUNT_MATRIX_FILE = false;
+    private static final boolean BUILD_QUERY_TOKEN_FILE = true;
     
     /*
      * Variables for Output
@@ -57,6 +58,7 @@ public class SearchlogAnalysis_SheetOne {
     private static long epoc;
     private static long lastEpoc;
     private static String query;
+    private static String[] queryTokens;
     
     /*
      * Variables for matrix
@@ -77,12 +79,11 @@ public class SearchlogAnalysis_SheetOne {
         resetVariables();
         
         readBigData();
-        checkForBots();
+        //checkForBots();
         
         if(BUILD_DAILY_COUNT_MATRIX_FILE){
-            if(BUILD_SAMPLE_DAILY_COUNT_MATRIX_FILE){
-                matrixBuilder.writeFile(BUILD_SAMPLE_DAILY_COUNT_MATRIX_FILE);
-            }
+            System.out.println("before writing starts");
+            matrixBuilder.writeFile(BUILD_SAMPLE_DAILY_COUNT_MATRIX_FILE);
         }
         
         System.out.println("done");
@@ -131,6 +132,12 @@ public class SearchlogAnalysis_SheetOne {
     private static void writeCSVHeader(Scanner scanner, Writer writer) {
         writeResults(writer, Util.getHeader());
     }
+
+    private static void escapeQueryCharacters(String query) {
+        query = query.replaceAll("\"", "\"\"");
+        query = query.replaceAll("\'", "\\\\\'");
+        query = query.replaceAll(",", "\\\\,");
+    }
     /* End help-functions */
     
     /* Data is read, analyzed and written into a result file */ 
@@ -151,11 +158,15 @@ public class SearchlogAnalysis_SheetOne {
      */
     private static void createResultFile(Scanner scanner) {
         Writer writerCSV;
+        Writer writerTokens;
         // wirter gets initialized only when the file gets written to prevent deleting the old file in the same location
         
         if(BUILD_CSV_FILE){
             writerCSV = registerWriter(Util.getCSVLocation());
             writeCSVHeader(scanner, writerCSV);
+        }
+        if(BUILD_QUERY_TOKEN_FILE){
+            writerTokens = registerWriter(Util.getQueryTokenFileLocation());
         }
         
         while(scanner.hasNextLine()){
@@ -183,6 +194,15 @@ public class SearchlogAnalysis_SheetOne {
                 newEntry = buildNewEntry();
                 writeResults(writerCSV, newEntry);     
             }
+            if(BUILD_QUERY_TOKEN_FILE){
+                for (String queryToken : queryTokens) {
+                    try {
+                        writerTokens.write(queryToken + ",");
+                    } catch (IOException ex) {
+                        Logger.getLogger(SearchlogAnalysis_SheetOne.class.getName()).log(Level.SEVERE, null, ex);
+                    }
+                }
+            }
             
             /* end data of one user */
             
@@ -207,8 +227,10 @@ public class SearchlogAnalysis_SheetOne {
             lastUserId = userId;
             userId = Integer.parseInt(currentTokens[0]);
             query = currentTokens[1];
-            String[] arr = query.split(",|\\s|-");
-            wordCount = arr.length;
+            queryTokens = query.split(",|\\s|-");
+            /* clears query from / and " */
+            escapeQueryCharacters(query);
+            wordCount = queryTokens.length;
             lastEpoc = epoc;
             epoc = convertToDate(currentTokens[2]).getTime();
             timeSinceLastInteraction = epoc - lastEpoc;
@@ -257,16 +279,17 @@ public class SearchlogAnalysis_SheetOne {
      * @return 
      */
     private static String buildNewEntry() {
-        String returnString =sessionId+
-                        ","+userId+
-                        ","+query+
-                        ","+timeSinceLastInteraction+
-                        ","+epoc+
-                        ","+query.length()+
-                        ","+wordCount+
-                        ","+lastSessionLengthTime+
-                        ","+queriesLastSession+
-                        ","+currentRank;
+        String returnString =
+                        "\""+sessionId+
+                        "\"\t\""+userId+
+                        "\"\t\""+query+
+                        "\"\t\""+timeSinceLastInteraction+
+                        "\"\t\""+epoc+
+                        "\"\t\""+query.length()+
+                        "\"\t\""+wordCount+
+                        "\"\t\""+lastSessionLengthTime+
+                        "\"\t\""+queriesLastSession+
+                        "\"\t\""+currentRank+"\"";
         return returnString;
     }
 
@@ -279,41 +302,7 @@ public class SearchlogAnalysis_SheetOne {
         }
     }
 
-    private static void logMatrix() {
-        int test = 0;
-        for (int i = 0; i < 10; i++) {
-            String userResults = "";
-            for (int j = 0; j < Util.getTotalDays(); j++) {
-                userResults += dailyCountMatrix.get(i)[j] + ", ";
-                test+=dailyCountMatrix.get(i)[j];
-            }
-            System.out.println("UserID: "+userIdRegistry.get(i+1)+"\n"+userResults);
-            System.out.println(test);
-        }
-    }
-
-    private static void writeMatrixFile(Writer writerMatrix) {
-        for (int i=0; i<dailyCountMatrix.size(); i++){
-            String newEntry = buildNewMatrixLine(i);
-            writeResults(writerMatrix, newEntry);
-            if(BUILD_SAMPLE_DAILY_COUNT_MATRIX_FILE){
-                if(Arrays.asList(sampleUser).contains(i)){
-                    writeResults(writerSampleMatrix, newEntry);
-                }
-            }
-        }
-        closeWriter(writerMatrix);
-    }
-
-    private static String buildNewMatrixLine(int n) {
-        String returnString = "";
-        int[] currentMatrixLine = dailyCountMatrix.get(n);
-        for(int i=0; i<currentMatrixLine.length; i++){
-            returnString += currentMatrixLine[i]+" ";
-        }
-        return returnString;
-    }
-
+    /*
     private static void checkForBots() {
         int check = 0;
         for (int[] get : dailyCountMatrix) {
@@ -325,4 +314,5 @@ public class SearchlogAnalysis_SheetOne {
         }
         System.out.println(check);
     }
+    */
 }
