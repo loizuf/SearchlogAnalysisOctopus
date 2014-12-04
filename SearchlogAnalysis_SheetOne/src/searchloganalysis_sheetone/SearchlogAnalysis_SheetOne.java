@@ -49,7 +49,6 @@ public class SearchlogAnalysis_SheetOne {
     private static int currentRank;
     private static int totalUsers = 0;
     private static int totalClicks = 0;
-    private static int flag = 0;
     private static int queriesPerSession = 1;
     private static int queriesLastSession = 1;
     private static long timeSinceLastInteraction;
