@@ -25,6 +25,7 @@ public class Util {
     private static final String CHARACTER_COUNT_ARRAY_LOCATION = "characterCountMatrix.txt";
     private static final String SAMPLE_USER_INDEX_LOCATION = "sampleUserIndex.txt";
     private static final String QUERY_TOKEN_FILE_LOCATION = "queryTokens.txt";
+    private static final String QUERY_PAIR_FILE_LOCATION = "queryPairs.csv";
     
     private static final int TOO_MANY_QUERIES_FOR_SESSION_LENGTH = 1;
     private static final int TOO_LONG_QUERIES = 2;
@@ -105,6 +106,10 @@ public class Util {
     
     public static int getSampleSize() {
         return SAMPLE_SIZE;
+    }
+
+    static String getQueryPairFileLocation() {
+        return QUERY_PAIR_FILE_LOCATION;
     }
 
 }

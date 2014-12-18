@@ -11,6 +11,7 @@ import java.io.Writer;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.Random;
 import java.util.Scanner;
 import java.util.logging.Level;
@@ -37,7 +38,8 @@ public class SearchlogAnalysis_SheetOne {
     private static final boolean BUILD_CSV_FILE = false;
     private static final boolean BUILD_DAILY_COUNT_MATRIX_FILE = false;
     private static final boolean BUILD_SAMPLE_DAILY_COUNT_MATRIX_FILE = false;
-    private static final boolean BUILD_QUERY_TOKEN_FILE = true;
+    private static final boolean BUILD_QUERY_TOKEN_FILE = false;
+    private static final boolean BUILD_QUERY_PAIR_FILE = true;
     
     /*
      * Variables for Output
@@ -66,11 +68,11 @@ public class SearchlogAnalysis_SheetOne {
     private static DailyCountMatrixBuilder matrixBuilder;
     
     /*
-    private static int NNZ = 0;
-    private static int[] sampleUser;
-    private static ArrayList<int[]> dailyCountMatrix;
-    private static Writer writerSampleMatrix;
-    */
+     * Variables for Query Pairs
+     */
+    private static HashMap<String, Long> queryPairs = new HashMap<>();
+    private static boolean newUser = true;
+    
 
     public static void main(String[] args) {
         
@@ -79,7 +81,6 @@ public class SearchlogAnalysis_SheetOne {
         resetVariables();
         
         readBigData();
-        //checkForBots();
         
         if(BUILD_DAILY_COUNT_MATRIX_FILE){
             System.out.println("before writing starts");
@@ -127,6 +128,7 @@ public class SearchlogAnalysis_SheetOne {
         lastSessionLengthTime = 0;
         queriesLastSession = 1;
         currentRank = 0;
+        newUser = false;
     }
     
     private static void writeCSVHeader(Scanner scanner, Writer writer) {
@@ -159,6 +161,7 @@ public class SearchlogAnalysis_SheetOne {
     private static void createResultFile(Scanner scanner) {
         Writer writerCSV;
         Writer writerTokens;
+        Writer writerPairs;
         // wirter gets initialized only when the file gets written to prevent deleting the old file in the same location
         
         if(BUILD_CSV_FILE){
@@ -167,6 +170,9 @@ public class SearchlogAnalysis_SheetOne {
         }
         if(BUILD_QUERY_TOKEN_FILE){
             writerTokens = registerWriter(Util.getQueryTokenFileLocation());
+        }
+        if(BUILD_QUERY_PAIR_FILE){
+            writerPairs = registerWriter(Util.getQueryPairFileLocation());
         }
         
         while(scanner.hasNextLine()){
@@ -179,7 +185,8 @@ public class SearchlogAnalysis_SheetOne {
             setVariables(currentTokens);
             
             // advances session and counts some variables for measuring the session length
-            if(changeSessionIfNecessary()){
+            boolean sessionChanged = changeSessionIfNecessary();
+            if(sessionChanged){
                 sessionLengthTime = 0;
                 queriesPerSession = 1;
             } else {
@@ -203,6 +210,23 @@ public class SearchlogAnalysis_SheetOne {
                     }
                 }
             }
+            if(BUILD_QUERY_PAIR_FILE){
+                if(userId != lastUserId){
+                    queryPairs.clear();
+                    queryPairs.put(query, epoc);
+                } else {
+                    if(queryPairs.containsKey(query)){
+                        long difference = epoc - queryPairs.get(query);
+                        if(difference != 0){
+                            String newString = userId+"\t"+query+"\t"+difference;
+                            writeResults(writerPairs, newString);
+                            queryPairs.put(query, epoc);
+                        }
+                    } else {
+                        queryPairs.put(query, epoc);
+                    }         
+                }
+            }
             
             /* end data of one user */
             
@@ -211,6 +235,12 @@ public class SearchlogAnalysis_SheetOne {
         }
         if(BUILD_CSV_FILE){
             closeWriter(writerCSV);
+        }
+        if(BUILD_QUERY_TOKEN_FILE){
+            closeWriter(writerTokens);
+        }
+        if(BUILD_QUERY_PAIR_FILE){
+            closeWriter(writerPairs);
         }
         matrixBuilder.correctOffByOne();
     }
@@ -258,6 +288,7 @@ public class SearchlogAnalysis_SheetOne {
             sessionId++;
             timeSinceLastInteraction = 0;
             totalUsers++;
+            newUser = true;
             return true;
         } else if(timeSinceLastInteraction > Util.minutesToEpoc(30)){
             sessionId++;
