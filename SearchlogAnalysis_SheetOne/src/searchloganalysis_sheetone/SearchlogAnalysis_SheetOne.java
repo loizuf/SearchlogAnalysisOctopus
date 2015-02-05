@@ -28,20 +28,22 @@ public class SearchlogAnalysis_SheetOne {
      * 3. CipPool (typical Location)
      */
     
-    private static final int PC_TYPE = 1;
+    private static final int PC_TYPE = 2;
     
     /*
      * Boolean constants for writing things
      */
     
-    private static final boolean BUILD_CSV_FILE = false;
-    private static final boolean BUILD_DAILY_COUNT_MATRIX_FILE = false;
+    private static final boolean BUILD_CSV_FILE = true;
+    private static final boolean BUILD_DAILY_COUNT_MATRIX_FILE = true;
     private static final boolean BUILD_SAMPLE_DAILY_COUNT_MATRIX_FILE = false;
     private static final boolean BUILD_QUERY_TOKEN_FILE = true;
     
     /*
      * Variables for Output
      */
+    private static String lastEntry = "";
+    
     private static int sessionId = 0;
     private static int userId = 0;
     private static int lastUserId;
@@ -58,6 +60,7 @@ public class SearchlogAnalysis_SheetOne {
     private static long lastEpoc;
     private static String query;
     private static String[] queryTokens;
+    private static boolean changedSession = false;
     
     /*
      * Variables for matrix
@@ -126,6 +129,7 @@ public class SearchlogAnalysis_SheetOne {
         lastSessionLengthTime = 0;
         queriesLastSession = 1;
         currentRank = 0;
+        changedSession = false;
     }
     
     private static void writeCSVHeader(Scanner scanner, Writer writer) {
@@ -178,7 +182,8 @@ public class SearchlogAnalysis_SheetOne {
             setVariables(currentTokens);
             
             // advances session and counts some variables for measuring the session length
-            if(changeSessionIfNecessary()){
+            changedSession = changeSessionIfNecessary();
+            if(changedSession){
                 sessionLengthTime = 0;
                 queriesPerSession = 1;
             } else {
@@ -191,7 +196,13 @@ public class SearchlogAnalysis_SheetOne {
             // writes new line in file
             if(BUILD_CSV_FILE){
                 newEntry = buildNewEntry();
-                writeResults(writerCSV, newEntry);     
+                if(!changedSession){
+                    addNonValuesToString();
+                }
+                if(lastEntry != null){
+                    writeResults(writerCSV, lastEntry);
+                }
+                lastEntry = newEntry;
             }
             if(BUILD_QUERY_TOKEN_FILE){
                 for (String queryToken : queryTokens) {
@@ -314,4 +325,21 @@ public class SearchlogAnalysis_SheetOne {
         System.out.println(check);
     }
     */
+
+    private static void addNonValuesToString() {
+        String[] split = lastEntry.split("\t");
+        split[7] = "\"NA\"";
+        String returnString =
+                        split[0]+
+                        "\t"+split[1]+
+                        "\t"+split[2]+
+                        "\t"+split[3]+
+                        "\t"+split[4]+
+                        "\t"+split[5]+
+                        "\t"+split[6]+
+                        "\t"+split[7]+
+                        "\t"+split[8]+
+                        "\t"+split[9];
+        lastEntry = returnString;
+    }
 }

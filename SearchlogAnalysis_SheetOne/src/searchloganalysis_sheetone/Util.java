@@ -16,7 +16,7 @@ public class Util {
     private static final String BIG_DATA_LOCATION_LAPTOP = "C:\\Users\\Soean\\Documents\\Uni\\AOL-user-ct-collection\\user-ct-test-collection-01.txt";
     private static final String BIG_DATA_LOCATION_PC = "Y:\\Uni\\Serachlogs\\AOL-user-ct-collection\\user-ct-test-collection-01.txt";
     private static final String BIG_DATA_LOCATION_CIP = "C:\\Users\\cip\\AOL-user-ct-collection\\user-ct-test-collection-01.txt";
-    private static final String HEADER = "\"sessionID\",\"userId\",\"query\",\"timeSinceLast\",\"epoc\",\"queryLength\",\"queryWordCount\",\"sessionLength\",\"sessionQueryCount\",\"clickRank\"";
+    private static final String HEADER = "\"sessionID\"\t\"userId\"\t\"query\"\t\"timeSinceLast\"\t\"epoc\"\t\"queryLength\"\t\"queryWordCount\"\t\"sessionLength\"\t\"sessionQueryCount\"\t\"clickRank\"";
     private static final String DATE_FORMAT = "yyyy-MM-dd HH:mm:ss";
     private static final String ENCODING = "UTF-8";
     private static final String CSV_LOCATION = "results.csv";
